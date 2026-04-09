@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Reliable Narrator">
+<meta name="theme-color" content="#F7F3ED">
+<title>Reliable Narrator</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#F7F3ED;font-family:'DM Sans',sans-serif;color:#2C2520}
+::-webkit-scrollbar{display:none}
+button:active{transform:scale(0.97)!important}
+textarea:focus{outline:none;border-color:#C4704B!important}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
+@keyframes capturedPop{0%{transform:scale(0.8);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes dotPulse{0%,100%{transform:scale(0.8);opacity:0.4}50%{transform:scale(1.2);opacity:1}}
+@keyframes recordPulse{0%,100%{box-shadow:0 0 0 0 rgba(196,75,75,0.4)}50%{box-shadow:0 0 0 12px rgba(196,75,75,0)}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+const theme = {
+  bg:"#F7F3ED",bgDeep:"#EDE7DD",card:"#FFFCF7",
+  ink:"#2C2520",inkSoft:"#6B5E52",inkFaint:"#A89A8C",
+  accent:"#C4704B",accentSoft:"#D4956F",accentGlow:"rgba(196,112,75,0.12)",
+  border:"#DDD5CA",shadow:"rgba(44,37,32,0.08)",
+  green:"#5A8C6B",greenGlow:"rgba(90,140,107,0.12)",
+  recording:"#C44B4B",recordingGlow:"rgba(196,75,75,0.15)",
+  personal:"#7B6BA0",personalGlow:"rgba(123,107,160,0.12)",
+};
+
+const placeholderColors=[["#D4956F","#C4704B"],["#8BA4B0","#6B8A99"],["#A3B18A","#7A9468"],["#C9ADA7","#A68A82"],["#B5838D","#8E636C"],["#D4A574","#B8864A"],["#9DB5B2","#7A9895"]];
+const getGrad=(i)=>{const p=placeholderColors[i%placeholderColors.length];return `linear-gradient(135deg,${p[0]} 0%,${p[1]} 100%)`;};
+
+// ─── Icons ───
+const PenIcon=()=>React.createElement("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"none",stroke:"#fff",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 20h9"}),React.createElement("path",{d:"M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"}));
+const CameraIcon=()=>React.createElement("svg",{width:28,height:28,viewBox:"0 0 24 24",fill:"none",stroke:theme.inkSoft,strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"}),React.createElement("circle",{cx:12,cy:13,r:4}));
+const ChevLeft=()=>React.createElement("svg",{width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("polyline",{points:"15 18 9 12 15 6"}));
+const ChevRight=()=>React.createElement("svg",{width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("polyline",{points:"9 18 15 12 9 6"}));
+const MicIcon=({color="#fff",size=24})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("rect",{x:9,y:1,width:6,height:12,rx:3}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}));
+const CheckIcon=({color="#fff",size=20})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2.5,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("polyline",{points:"20 6 9 17 4 12"}));
+const RefreshIcon=({color=theme.accent})=>React.createElement("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("polyline",{points:"23 4 23 10 17 10"}),React.createElement("path",{d:"M20.49 15a9 9 0 1 1-2.12-9.36L23 10"}));
+const SendIcon=({color="#fff"})=>React.createElement("svg",{width:16,height:16,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("line",{x1:22,y1:2,x2:11,y2:13}),React.createElement("polygon",{points:"22 2 15 22 11 13 2 9 22 2"}));
+const ImageIcon=({color="#fff",size=48})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("rect",{x:3,y:3,width:18,height:18,rx:2,ry:2}),React.createElement("circle",{cx:8.5,cy:8.5,r:1.5}),React.createElement("polyline",{points:"21 15 16 10 5 21"}));
+const EditIcon=({color=theme.accent,size=16})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"}),React.createElement("path",{d:"M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"}));
+const CopyIcon=({color=theme.accent,size=16})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("rect",{x:9,y:9,width:13,height:13,rx:2,ry:2}),React.createElement("path",{d:"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"}));
+const GearIcon=({color=theme.inkSoft,size=20})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("circle",{cx:12,cy:12,r:3}),React.createElement("path",{d:"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"}));
+const SaveIcon=({color=theme.green,size=14})=>React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2.5,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"}),React.createElement("polyline",{points:"17 21 17 13 7 13 7 21"}),React.createElement("polyline",{points:"7 3 7 8 15 8"}));
+
+// ─── Sub-components ───
+const ThinkingDots=()=>React.createElement("div",{style:{display:"flex",gap:6,alignItems:"center",justifyContent:"center",padding:"16px 0"}},[0,1,2].map(i=>React.createElement("div",{key:i,style:{width:8,height:8,borderRadius:"50%",background:theme.accent,opacity:0.6,animation:`dotPulse 1.2s ease-in-out ${i*0.2}s infinite`}})));
+
+const NarrationBadge=({status})=>{
+  const bg=status==="done"?theme.green:status==="inprogress"?theme.accent:"rgba(44,37,32,0.4)";
+  return React.createElement("div",{style:{position:"absolute",bottom:-2,right:-2,width:20,height:20,borderRadius:6,background:bg,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${theme.bg}`,transition:"all 0.3s ease"}},
+    status==="done"?React.createElement(CheckIcon,{color:"#fff",size:11}):status==="inprogress"?React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:"#fff"}}):React.createElement(MicIcon,{color:"#fff",size:10}));
+};
+
+const PhotoPlaceholder=({index,name,size="large"})=>React.createElement("div",{style:{width:"100%",height:size==="large"?320:size==="small"?48:64,minHeight:size==="large"?320:size==="small"?48:64,background:getGrad(index),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}},
+  size==="large"&&React.createElement(React.Fragment,null,React.createElement(ImageIcon,{color:"rgba(255,255,255,0.5)"}),React.createElement("p",{style:{fontFamily:"'Libre Baskerville', serif",fontSize:14,color:"rgba(255,255,255,0.7)",margin:"12px 16px 0",textAlign:"center",fontStyle:"italic"}},name||`Photo ${index+1}`)));
+
+const Thumbnail=({photo,index,isActive,status,onClick})=>React.createElement("div",{style:{position:"relative",flexShrink:0,cursor:"pointer"},onClick},
+  React.createElement("div",{style:{width:64,height:64,borderRadius:12,overflow:"hidden",border:isActive?`2px solid ${theme.accent}`:"2px solid transparent",boxShadow:isActive?`0 2px 12px ${theme.accentGlow}`:`0 2px 8px ${theme.shadow}`,transform:isActive?"scale(1.05)":"scale(1)",transition:"all 0.2s ease"}},
+    photo.dataUrl?React.createElement("img",{src:photo.dataUrl,alt:"",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}}):React.createElement(PhotoPlaceholder,{index,size:"thumb"})),
+  React.createElement(NarrationBadge,{status}));
+
+const ChatBubble=({from,text,animate})=>React.createElement("div",{style:{display:"flex",justifyContent:from==="rn"?"flex-start":"flex-end",marginBottom:10,animation:animate?"fadeIn 0.3s ease":"none"}},
+  React.createElement("div",{style:{maxWidth:"85%",padding:"12px 16px",borderRadius:from==="rn"?"18px 18px 18px 6px":"18px 18px 6px 18px",background:from==="rn"?theme.bgDeep:theme.accent,color:from==="rn"?theme.ink:"#fff",fontSize:14,lineHeight:1.55,fontFamily:"'DM Sans', sans-serif",boxShadow:`0 2px 8px ${theme.shadow}`}},
+    from==="rn"&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:theme.accent,display:"block",marginBottom:4,letterSpacing:"0.04em"}},"RN"),text));
+
+const MiniPhoto=({photo,index})=>React.createElement("div",{style:{width:48,height:48,borderRadius:10,overflow:"hidden",flexShrink:0}},
+  photo.dataUrl?React.createElement("img",{src:photo.dataUrl,alt:"",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}}):React.createElement(PhotoPlaceholder,{index,size:"small"}));
+
+const SaveIndicator=({status})=>{
+  if(!status) return null;
+  const configs={saving:{text:"Saving...",color:theme.inkFaint},saved:{text:"Saved",color:theme.green},error:{text:"Save failed",color:theme.recording}};
+  const c=configs[status]||configs.saved;
+  return React.createElement("div",{style:{position:"fixed",top:12,right:12,zIndex:100,display:"flex",alignItems:"center",gap:5,background:theme.card,border:`1px solid ${theme.border}`,borderRadius:10,padding:"6px 12px",boxShadow:`0 2px 12px ${theme.shadow}`,animation:"fadeIn 0.3s ease",fontSize:12,fontWeight:500,color:c.color}},React.createElement(SaveIcon,{color:c.color}),` ${c.text}`);
+};
+
+// ─── AI ───
+async function askRN(apiKey, systemPrompt, messages) {
+  if (!apiKey) return null;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:systemPrompt,messages}),
+    });
+    const data = await res.json();
+    return data.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n").trim()||null;
+  } catch(e){console.error("RN AI error:",e);return null;}
+}
+
+function getInterviewPrompt(styleRules,sampleText){
+  return `You are "Reliable Narrator" (RN), a warm, curious friend helping someone capture their week's stories from photos. Your primary mode is the RELIABLE NARRATOR — you push for honesty, specificity, and the real version of events.
+
+PERSONALITY: You're a curious, perceptive friend. Warm but direct. You notice when someone is skating over the surface and you gently call it out. Brief, casual, never formulaic.
+
+YOUR APPROACH:
+- ALWAYS ask at least one follow-up question.
+- Favor RELIABLE NARRATOR mode: "Is there a more honest version of this?" "What are you leaving out?" "You said that pretty casually — was it actually a bigger deal?"
+- Also use FACT FINDER: "Who else was there?" "What happened right before this?"
+- Also use MEANING MAKER: "Why did you take this photo specifically?" "What does this remind you of?"
+- Keep questions to 1-2 sentences.
+- After 3 follow-ups total, respond with DONE.
+- If user says "that's it"/"nothing else"/"skip"/"next", respond with DONE.
+${styleRules?`\nTHE WRITER'S STYLE:\n${styleRules}\n`:""}
+CRITICAL: You MUST ask at least one follow-up for the first response. Do NOT respond with DONE on the first exchange.
+Respond with EITHER a short follow-up question OR the word DONE. Nothing else.`;
+}
+
+function getRefinePrompt(styleRules,sampleText){
+  return `You are "Reliable Narrator" (RN), a skilled editor who transforms raw spoken narrations into polished written prose.
+
+CRITICAL RULES:
+1. ACTIVELY REWRITE — restructure sentences, improve word choices, create better flow.
+2. Merge facts and reflections into a cohesive narrative arc.
+3. Write in first person. This is THEIR story, in THEIR voice — but elevated.
+4. Remove all verbal tics, filler, repetition, and transcript artifacts.
+5. Add transitions and connective tissue between ideas.
+6. Keep personality, humor, and specific details.
+7. Don't add facts or events that weren't mentioned.
+8. Aim for 1-3 polished paragraphs per entry.
+9. The result should feel like something the person would be PROUD to send to family.
+${sampleText?`\nWRITING SAMPLES (match this voice):\n---\n${sampleText}\n---\n`:""}
+${styleRules?`\nSTYLE RULES:\n${styleRules}\n`:""}
+Output ONLY the refined text. No preamble, labels, or commentary.`;
+}
+
+// ─── Storage (localStorage) ───
+const STORE_KEY="rn-session";
+const SETTINGS_KEY="rn-settings";
+
+function saveSession(data){try{localStorage.setItem(STORE_KEY,JSON.stringify(data));return true;}catch(e){console.error("Save failed:",e);return false;}}
+function loadSession(){try{const s=localStorage.getItem(STORE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+function saveSettingsLS(data){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(data));return true;}catch(e){return false;}}
+function loadSettingsLS(){try{const s=localStorage.getItem(SETTINGS_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+
+// ─── Image compression ───
+function compressImage(dataUrl,maxWidth=800,quality=0.7){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.onload=()=>{const c=document.createElement("canvas");let w=img.width,h=img.height;if(w>maxWidth){h=Math.round(h*(maxWidth/w));w=maxWidth;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);resolve(c.toDataURL("image/jpeg",quality));};
+    img.onerror=()=>resolve(dataUrl);
+    img.src=dataUrl;
+  });
+}
+
+// ═══════════ MAIN APP ═══════════
+function ReliableNarrator(){
+  const[photos,setPhotos]=useState([]);
+  const[currentIndex,setCurrentIndex]=useState(0);
+  const[dragActive,setDragActive]=useState(false);
+  const[view,setView]=useState("loading");
+
+  const[narrationData,setNarrationData]=useState({});
+  const[inputText,setInputText]=useState("");
+  const[aiThinking,setAiThinking]=useState(false);
+  const[phase,setPhase]=useState("idle");
+
+  const[refinedData,setRefinedData]=useState({});
+  const[endorseIndex,setEndorseIndex]=useState(0);
+  const[isEditing,setIsEditing]=useState(false);
+  const[editText,setEditText]=useState("");
+
+  const[tags,setTags]=useState({});
+  const[tagIndex,setTagIndex]=useState(0);
+
+  const[styleRules,setStyleRules]=useState("");
+  const[sampleText,setSampleText]=useState("");
+  const[apiKey,setApiKey]=useState("");
+  const[settingsDraft,setSettingsDraft]=useState({rules:"",samples:"",key:""});
+
+  const[isRecording,setIsRecording]=useState(false);
+  const[speechSupported,setSpeechSupported]=useState(false);
+
+  const[copied,setCopied]=useState("");
+  const[saveStatus,setSaveStatus]=useState(null);
+  const[previousView,setPreviousView]=useState("upload");
+
+  const fileInputRef=useRef(null);
+  const addMoreInputRef=useRef(null);
+  const textareaRef=useRef(null);
+  const chatEndRef=useRef(null);
+  const editRef=useRef(null);
+  const saveTimerRef=useRef(null);
+  const recognitionRef=useRef(null);
+
+  const hasAI=!!apiKey;
+
+  // ─── Init ───
+  useEffect(()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(SR)setSpeechSupported(true);
+
+    const settings=loadSettingsLS();
+    if(settings){setStyleRules(settings.styleRules||"");setSampleText(settings.sampleText||"");setApiKey(settings.apiKey||"");}
+    const session=loadSession();
+    if(session&&session.photos?.length>0){
+      setPhotos((session.photos||[]).map(p=>({...p,date:p.date?new Date(p.date):new Date()})));
+      setNarrationData(session.narrationData||{});
+      setRefinedData(session.refinedData||{});
+      setTags(session.tags||{});
+      setView(session.view&&session.view!=="loading"?session.view:"review");
+      setCurrentIndex(session.currentIndex||0);
+    } else { setView("upload"); }
+  },[]);
+
+  // ─── Auto-save ───
+  useEffect(()=>{
+    if(view==="loading")return;
+    if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
+    saveTimerRef.current=setTimeout(async()=>{
+      setSaveStatus("saving");
+      const photosToSave=await Promise.all(photos.map(async(p)=>{
+        let d=null;
+        if(p.dataUrl){if(p.dataUrl.length<200000){d=p.dataUrl;}else{try{d=await compressImage(p.dataUrl,600,0.6);}catch(e){d=null;}}}
+        return{...p,dataUrl:d,file:null};
+      }));
+      const ok=saveSession({photos:photosToSave,narrationData,refinedData,tags,view:["upload","review","viewer","endorse","tagging","output"].includes(view)?view:"review",currentIndex});
+      setSaveStatus(ok?"saved":"error");
+      setTimeout(()=>setSaveStatus(null),2000);
+    },1500);
+    return()=>{if(saveTimerRef.current)clearTimeout(saveTimerRef.current);};
+  },[photos,narrationData,refinedData,tags,view,currentIndex]);
+
+  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[narrationData,aiThinking]);
+
+  useEffect(()=>{
+    const id=photos[currentIndex]?.id;
+    if(id&&narrationData[id]?.messages?.length>0){
+      const last=narrationData[id].messages[narrationData[id].messages.length-1];
+      if(last.from==="rn"&&!narrationData[id]?.done)setPhase("followup");
+      else setPhase("open");
+    }else setPhase("idle");
+    setInputText("");
+  },[currentIndex,photos]);
+
+  useEffect(()=>{if((phase==="narrating"||phase==="followup"||phase==="open")&&textareaRef.current)setTimeout(()=>textareaRef.current?.focus(),100);},[phase]);
+  useEffect(()=>{if(isEditing&&editRef.current)setTimeout(()=>editRef.current?.focus(),100);},[isEditing]);
+
+  // ─── Helpers ───
+  const curPid=()=>photos[currentIndex]?.id;
+  const getData=(id)=>narrationData[id]||{messages:[],transcript:"",done:false};
+  const narratedCount=photos.filter(p=>narrationData[p.id]?.done).length;
+  const getNarrationStatus=(id)=>{const d=narrationData[id];if(!d)return"pending";if(d.done)return"done";if(d.messages.length>0)return"inprogress";return"pending";};
+  const narratedPhotos=photos.filter(p=>narrationData[p.id]?.done);
+  const endorsedCount=narratedPhotos.filter(p=>refinedData[p.id]?.endorsed).length;
+  const taggedCount=narratedPhotos.filter(p=>tags[p.id]).length;
+  const formatDate=(d)=>{if(!d||!d.getDay)return"";const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];const mos=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];return`${days[d.getDay()]}, ${mos[d.getMonth()]} ${d.getDate()}`;};
+
+  // ─── Speech ───
+  const startSpeech=()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return;
+    if(phase==="idle")setPhase("narrating");
+    const recognition=new SR();recognition.continuous=true;recognition.interimResults=true;recognition.lang="en-US";
+    let finalTranscript=inputText||"";
+    recognition.onresult=(event)=>{let interim="";for(let i=event.resultIndex;i<event.results.length;i++){if(event.results[i].isFinal){finalTranscript+=event.results[i][0].transcript+" ";}else{interim+=event.results[i][0].transcript;}}setInputText(finalTranscript+interim);};
+    recognition.onerror=(event)=>{if(event.error==="no-speech"){try{recognition.stop();}catch(e){}return;}setIsRecording(false);};
+    recognition.onend=()=>{if(recognitionRef.current===recognition){try{recognition.start();}catch(e){setIsRecording(false);}}};
+    recognitionRef.current=recognition;
+    try{recognition.start();setIsRecording(true);}catch(e){console.error("Failed to start speech:",e);}
+  };
+  const stopSpeech=()=>{if(recognitionRef.current){const r=recognitionRef.current;recognitionRef.current=null;try{r.stop();}catch(e){}}setIsRecording(false);};
+  const toggleSpeech=()=>{if(isRecording)stopSpeech();else startSpeech();};
+
+  // ─── Narration ───
+  const submitText=async()=>{
+    const id=curPid();const text=inputText.trim();if(!id||!text)return;
+    const cur=getData(id);
+    const newMsgs=[...cur.messages,{from:"user",text}];
+    const newTx=cur.transcript+(cur.transcript?"\n\n":"")+text;
+    setNarrationData(prev=>({...prev,[id]:{...cur,messages:newMsgs,transcript:newTx,done:cur.done}}));
+    setInputText("");
+    if(hasAI){
+      setAiThinking(true);
+      const aiMsgs=newMsgs.map(m=>({role:m.from==="user"?"user":"assistant",content:m.text}));
+      const resp=await askRN(apiKey,getInterviewPrompt(styleRules,sampleText),aiMsgs);
+      setAiThinking(false);
+      if(!resp||resp.toUpperCase().includes("DONE")){
+        setNarrationData(prev=>({...prev,[id]:{...prev[id],done:true}}));setPhase("open");
+      }else{
+        setNarrationData(prev=>({...prev,[id]:{...prev[id],messages:[...prev[id].messages,{from:"rn",text:resp}]}}));setPhase("followup");
+      }
+    }else{
+      // No AI — just mark as done after submission
+      setNarrationData(prev=>({...prev,[id]:{...prev[id],done:true}}));setPhase("open");
+    }
+  };
+  const startNarrating=()=>{setPhase("narrating");setInputText("");};
+  const resetNarration=(id)=>{setNarrationData(prev=>{const u={...prev};delete u[id];return u;});setPhase("idle");setInputText("");stopSpeech();};
+
+  // ─── Refinement ───
+  const startRefinement=async()=>{
+    if(!hasAI){
+      // Without AI, use transcripts as-is
+      const newRefined={...refinedData};
+      narratedPhotos.forEach(p=>{if(!newRefined[p.id]?.refined){newRefined[p.id]={refined:narrationData[p.id]?.transcript||"",endorsed:false};}});
+      setRefinedData(newRefined);setEndorseIndex(0);setIsEditing(false);setEditText("");setView("endorse");return;
+    }
+    setView("refining");
+    const prompt=getRefinePrompt(styleRules,sampleText);
+    const toRefine=narratedPhotos.filter(p=>!refinedData[p.id]?.refined);
+    for(const photo of toRefine){
+      const transcript=narrationData[photo.id]?.transcript||"";if(!transcript)continue;
+      const resp=await askRN(apiKey,prompt,[{role:"user",content:transcript}]);
+      setRefinedData(prev=>({...prev,[photo.id]:{refined:resp||transcript,endorsed:false}}));
+    }
+    setEndorseIndex(0);setIsEditing(false);setEditText("");setView("endorse");
+  };
+  const retryRefine=async(photoId)=>{
+    const transcript=narrationData[photoId]?.transcript||"";
+    if(!hasAI){setRefinedData(prev=>({...prev,[photoId]:{refined:transcript,endorsed:false}}));return;}
+    const prompt=getRefinePrompt(styleRules,sampleText);
+    setRefinedData(prev=>({...prev,[photoId]:{...prev[photoId],refined:null,endorsed:false}}));
+    const resp=await askRN(apiKey,prompt,[{role:"user",content:`Try a different, more creative approach:\n\n${transcript}`}]);
+    setRefinedData(prev=>({...prev,[photoId]:{refined:resp||transcript,endorsed:false}}));
+  };
+  const endorseEntry=(photoId)=>{setRefinedData(prev=>({...prev,[photoId]:{...prev[photoId],endorsed:true}}));setIsEditing(false);if(endorseIndex<narratedPhotos.length-1)setEndorseIndex(endorseIndex+1);};
+  const saveEditFn=(photoId)=>{setRefinedData(prev=>({...prev,[photoId]:{...prev[photoId],refined:editText,endorsed:false}}));setIsEditing(false);};
+
+  // ─── Tagging ───
+  const startTagging=()=>{setTagIndex(0);setView("tagging");};
+  const tagEntry=(photoId,tag)=>{setTags(prev=>({...prev,[photoId]:tag}));if(tagIndex<narratedPhotos.length-1)setTagIndex(tagIndex+1);};
+
+  // ─── Files ───
+  const handleFiles=useCallback((files)=>{
+    const validTypes=["image/jpeg","image/jpg","image/png","image/gif","image/webp","image/bmp","image/heic","image/heif"];
+    Array.from(files).forEach(file=>{
+      const isImage=file.type.startsWith("image/")||validTypes.some(t=>file.type.toLowerCase()===t);
+      if(!isImage||file.type.startsWith("video/")||file.size>15*1024*1024)return;
+      const reader=new FileReader();
+      reader.onerror=()=>{};
+      reader.onload=(e)=>{
+        const dataUrl=e.target.result;
+        if(!dataUrl||typeof dataUrl!=="string"||!dataUrl.startsWith("data:"))return;
+        setPhotos(prev=>[...prev,{id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,file:null,dataUrl,name:file.name.replace(/\.[^.]+$/,"").replace(/[-_]/g," "),date:file.lastModified?new Date(file.lastModified):new Date()}].sort((a,b)=>a.date-b.date));
+      };
+      reader.readAsDataURL(file);
+    });
+    setTimeout(()=>setView("review"),100);
+  },[]);
+
+  const handleDrop=useCallback((e)=>{e.preventDefault();setDragActive(false);handleFiles(e.dataTransfer.files);},[handleFiles]);
+  const removePhoto=(id)=>{setPhotos(prev=>{const u=prev.filter(p=>p.id!==id);if(currentIndex>=u.length&&u.length>0)setCurrentIndex(u.length-1);if(u.length===0)setView("upload");return u;});};
+  const goTo=(i)=>{if(i>=0&&i<photos.length){stopSpeech();setCurrentIndex(i);}};
+  const enterViewer=()=>{const f=photos.findIndex(p=>!narrationData[p.id]?.done);setCurrentIndex(f>=0?f:0);setView("viewer");};
+
+  const copyToClipboard=async(text,label)=>{
+    if(!text){setCopied("empty");setTimeout(()=>setCopied(""),2000);return;}
+    try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);setCopied(label);setTimeout(()=>setCopied(""),2000);return;}}catch(e){}
+    try{const ta=document.createElement("textarea");ta.value=text;ta.style.cssText="position:fixed;left:-9999px;top:-9999px;opacity:0";document.body.appendChild(ta);ta.focus();ta.select();ta.setSelectionRange(0,text.length);document.execCommand("copy");document.body.removeChild(ta);setCopied(label);setTimeout(()=>setCopied(""),2000);}
+    catch(e2){setCopied("failed");setTimeout(()=>setCopied(""),2000);}
+  };
+
+  const openSettings=()=>{setPreviousView(view);setSettingsDraft({rules:styleRules,samples:sampleText,key:apiKey});setView("settings");};
+  const clearSession=()=>{try{localStorage.removeItem(STORE_KEY);}catch(e){}setPhotos([]);setNarrationData({});setRefinedData({});setTags({});setCurrentIndex(0);setView("upload");};
+
+  // ─── Styles ───
+  const S={
+    content:{position:"relative",zIndex:1,width:"100%",maxWidth:480,padding:"0 20px",display:"flex",flexDirection:"column",alignItems:"center",margin:"0 auto"},
+    header:{textAlign:"center",padding:"48px 0 32px",width:"100%"},
+    logoMark:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:48,height:48,borderRadius:14,background:theme.accent,marginBottom:16,boxShadow:`0 4px 16px ${theme.accentGlow}`},
+    title:{fontFamily:"'Libre Baskerville', serif",fontSize:28,fontWeight:700,color:theme.ink,margin:"0 0 6px",letterSpacing:"-0.02em"},
+    subtitle:{fontSize:15,color:theme.inkSoft,margin:0},
+    uploadZone:{width:"100%",border:`2px dashed ${theme.border}`,borderRadius:20,padding:"48px 24px",textAlign:"center",cursor:"pointer",transition:"all 0.3s ease",background:theme.card,marginBottom:24},
+    uploadZoneActive:{borderColor:theme.accent,background:theme.accentGlow},
+    uploadIcon:{width:56,height:56,borderRadius:16,background:theme.bgDeep,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:16},
+    uploadText:{fontFamily:"'Libre Baskerville', serif",fontSize:17,color:theme.ink,margin:"0 0 8px"},
+    uploadHint:{fontSize:13,color:theme.inkFaint,margin:0},
+    emptyArea:{width:"100%",aspectRatio:"4/3",display:"flex",alignItems:"center",justifyContent:"center",background:theme.bgDeep,borderRadius:20,marginBottom:24},
+    emptyText:{fontFamily:"'Libre Baskerville', serif",fontSize:16,color:theme.inkFaint,fontStyle:"italic"},
+    stripContainer:{width:"100%",marginBottom:16},
+    stripLabel:{fontSize:12,fontWeight:600,color:theme.inkFaint,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12},
+    strip:{display:"flex",gap:10,overflowX:"auto",paddingBottom:8},
+    hintText:{fontSize:12,color:theme.inkFaint,textAlign:"center",margin:"0 0 24px",fontStyle:"italic"},
+    addMoreBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:13,fontWeight:500,color:theme.accent,background:"transparent",border:`1px solid ${theme.accent}`,borderRadius:10,padding:"10px 20px",cursor:"pointer",marginBottom:24},
+    card:{width:"100%",background:theme.card,borderRadius:20,padding:"32px 24px",textAlign:"center",boxShadow:`0 4px 24px ${theme.shadow}`,marginBottom:32,border:`1px solid ${theme.border}`},
+    cardTitle:{fontFamily:"'Libre Baskerville', serif",fontSize:20,color:theme.ink,margin:"0 0 8px",fontWeight:400},
+    cardText:{fontSize:14,color:theme.inkSoft,margin:"0 0 16px",lineHeight:1.6},
+    primaryBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:theme.accent,border:"none",borderRadius:12,padding:"14px 28px",cursor:"pointer",boxShadow:`0 4px 16px ${theme.accentGlow}`},
+    outlineBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:14,fontWeight:500,color:theme.accent,background:"transparent",border:`1px solid ${theme.accent}`,borderRadius:12,padding:"12px 20px",cursor:"pointer"},
+    photoCard:{width:"100%",borderRadius:20,overflow:"hidden",background:theme.card,boxShadow:`0 8px 32px ${theme.shadow}`,position:"relative"},
+    photoImage:{width:"100%",display:"block",maxHeight:360,objectFit:"cover"},
+    photoFooter:{padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${theme.border}`},
+    photoIdx:{fontFamily:"'Libre Baskerville', serif",fontSize:14,color:theme.inkSoft,fontStyle:"italic"},
+    photoDate:{fontSize:13,color:theme.inkFaint,fontWeight:500},
+    navRow:{display:"flex",alignItems:"center",justifyContent:"center",gap:16,width:"100%",marginBottom:20},
+    navBtn:{width:48,height:48,borderRadius:14,border:`1px solid ${theme.border}`,background:theme.card,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 2px 8px ${theme.shadow}`,color:theme.ink},
+    navBtnOff:{opacity:0.35,cursor:"default"},
+    progBar:{flex:1,height:4,background:theme.bgDeep,borderRadius:2,overflow:"hidden",maxWidth:"100%"},
+    progFill:{height:"100%",background:theme.accent,borderRadius:2,transition:"width 0.4s ease"},
+    removeBtn:{position:"absolute",top:12,right:12,width:32,height:32,borderRadius:10,background:"rgba(44,37,32,0.6)",backdropFilter:"blur(8px)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+    micButton:{width:72,height:72,borderRadius:"50%",border:"none",background:theme.accent,cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 20px ${theme.accentGlow}`},
+    textarea:{width:"100%",fontFamily:"'DM Sans', sans-serif",fontSize:15,color:theme.ink,background:theme.bgDeep,border:`1px solid ${theme.border}`,borderRadius:14,padding:"12px 16px",resize:"vertical",minHeight:80,lineHeight:1.6},
+    inputActions:{display:"flex",alignItems:"center",marginTop:10,gap:8},
+    skipBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:13,color:theme.inkFaint,background:"transparent",border:"none",cursor:"pointer",padding:"8px 12px"},
+    sendBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:14,fontWeight:600,color:"#fff",background:theme.accent,border:"none",borderRadius:10,padding:"10px 18px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:8,boxShadow:`0 2px 12px ${theme.accentGlow}`},
+    reRecordBtn:{fontFamily:"'DM Sans', sans-serif",fontSize:13,fontWeight:500,color:theme.accent,background:"transparent",border:"none",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",marginTop:4},
+    sectionLabel:{fontSize:12,fontWeight:600,color:theme.inkFaint,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8},
+    tagBtn:{flex:1,fontFamily:"'DM Sans', sans-serif",fontSize:15,fontWeight:600,color:theme.ink,background:theme.card,border:`2px solid ${theme.border}`,borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all 0.2s ease"},
+  };
+
+  // ─── AI Status Banner ───
+  const AIBanner=()=>!hasAI?React.createElement("div",{style:{width:"100%",background:theme.bgDeep,border:`1px solid ${theme.border}`,borderRadius:12,padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:8,cursor:"pointer"},onClick:openSettings},
+    React.createElement("span",{style:{fontSize:13,color:theme.inkSoft}},"AI features inactive — "),
+    React.createElement("span",{style:{fontSize:13,color:theme.accent,fontWeight:500}},"add API key in settings")):null;
+
+  // ═══════════ VIEWS ═══════════
+  // (Keeping these concise — same logic as v5 but using React.createElement)
+
+  const renderLoading=()=>React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+    React.createElement("div",{style:S.header},React.createElement("div",{style:S.logoMark},React.createElement(PenIcon)),React.createElement("h1",{style:S.title},"Reliable Narrator"),React.createElement("p",{style:S.subtitle},"Loading...")),React.createElement(ThinkingDots));
+
+  const renderSettings=()=>React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+    React.createElement("div",{style:{...S.header,padding:"32px 0 24px"}},React.createElement("h1",{style:{...S.title,fontSize:22}},"Settings"),React.createElement("p",{style:S.subtitle},"Teach RN your voice")),
+    React.createElement("div",{style:{width:"100%",marginBottom:20}},
+      React.createElement("div",{style:S.sectionLabel},"API Key"),
+      React.createElement("p",{style:{fontSize:12,color:theme.inkFaint,margin:"0 0 8px",lineHeight:1.5}},"From console.anthropic.com — enables AI interviewer and refinement. Stored only on your device."),
+      React.createElement("input",{type:"password",value:settingsDraft.key,onChange:e=>setSettingsDraft(p=>({...p,key:e.target.value})),placeholder:"sk-ant-...",style:{...S.textarea,minHeight:0,height:44}})),
+    React.createElement("div",{style:{width:"100%",marginBottom:20}},
+      React.createElement("div",{style:S.sectionLabel},"Style Rules"),
+      React.createElement("textarea",{value:settingsDraft.rules,onChange:e=>setSettingsDraft(p=>({...p,rules:e.target.value})),placeholder:"Describe your writing style and tone...",style:{...S.textarea,minHeight:100}})),
+    React.createElement("div",{style:{width:"100%",marginBottom:24}},
+      React.createElement("div",{style:S.sectionLabel},"Writing Samples"),
+      React.createElement("textarea",{value:settingsDraft.samples,onChange:e=>setSettingsDraft(p=>({...p,samples:e.target.value})),placeholder:"Paste examples of your newsletter writing...",style:{...S.textarea,minHeight:140}})),
+    React.createElement("div",{style:{display:"flex",gap:12,width:"100%",marginBottom:20}},
+      React.createElement("button",{style:{...S.primaryBtn,flex:1},onClick:()=>{setStyleRules(settingsDraft.rules);setSampleText(settingsDraft.samples);setApiKey(settingsDraft.key);saveSettingsLS({styleRules:settingsDraft.rules,sampleText:settingsDraft.samples,apiKey:settingsDraft.key});setView(previousView);}},"Save settings"),
+      React.createElement("button",{style:{...S.outlineBtn,flex:1},onClick:()=>setView(previousView)},"Cancel")),
+    React.createElement("div",{style:{width:"100%",borderTop:`1px solid ${theme.border}`,paddingTop:20,marginBottom:32}},
+      React.createElement("div",{style:{...S.sectionLabel,color:theme.recording}},"Danger zone"),
+      React.createElement("button",{style:{...S.outlineBtn,borderColor:theme.recording,color:theme.recording,width:"100%"},onClick:()=>{if(confirm("Erase all photos, narrations, and progress?"))clearSession();}},"Clear all session data")));
+
+  const renderUpload=()=>React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+    React.createElement("div",{style:S.header},React.createElement("div",{style:S.logoMark},React.createElement(PenIcon)),React.createElement("h1",{style:S.title},"Reliable Narrator"),React.createElement("p",{style:S.subtitle},"Your week, in your words.")),
+    React.createElement(AIBanner),
+    React.createElement("div",{style:{...S.uploadZone,...(dragActive?S.uploadZoneActive:{})},onClick:()=>fileInputRef.current?.click(),onDrop:handleDrop,onDragOver:e=>{e.preventDefault();setDragActive(true);},onDragLeave:()=>setDragActive(false)},
+      React.createElement("div",{style:S.uploadIcon},React.createElement(CameraIcon)),
+      React.createElement("p",{style:S.uploadText},"Drop your week's photos here"),
+      React.createElement("p",{style:S.uploadHint},"or tap to browse your library"),
+      React.createElement("input",{ref:fileInputRef,type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:e=>{handleFiles(e.target.files);e.target.value="";}})),
+    React.createElement("div",{style:S.emptyArea},React.createElement("p",{style:S.emptyText},"Your story starts with a photo.")));
+
+  const renderReview=()=>{
+    const allDone=narratedCount===photos.length&&photos.length>0;
+    return React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+      React.createElement("div",{style:S.header},React.createElement("div",{style:S.logoMark},React.createElement(PenIcon)),React.createElement("h1",{style:S.title},"Reliable Narrator"),React.createElement("p",{style:S.subtitle},`${photos.length} photo${photos.length!==1?"s":""} loaded`)),
+      React.createElement(AIBanner),
+      React.createElement("div",{style:S.stripContainer},React.createElement("div",{style:S.stripLabel},"Your week's photos"),React.createElement("div",{style:S.strip},photos.map((p,i)=>React.createElement(Thumbnail,{key:p.id,photo:p,index:i,isActive:false,status:getNarrationStatus(p.id),onClick:()=>{setCurrentIndex(i);setView("viewer");}})))),
+      React.createElement("p",{style:S.hintText},"Tap any photo to narrate or review it."),
+      React.createElement("button",{style:S.addMoreBtn,onClick:()=>addMoreInputRef.current?.click()},"+  Add more photos",React.createElement("input",{ref:addMoreInputRef,type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:e=>{handleFiles(e.target.files);e.target.value="";}})),
+      React.createElement("div",{style:S.card},
+        React.createElement("h2",{style:S.cardTitle},allDone?"All photos narrated!":"Ready to tell your story?"),
+        React.createElement("p",{style:S.cardText},allDone?"Ready to refine your stories?":"We'll walk through each photo. You talk, RN listens."),
+        narratedCount>0&&React.createElement("p",{style:{fontSize:13,color:theme.green,margin:"0 0 16px",fontWeight:500}},`${narratedCount} of ${photos.length} narrated`),
+        React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}},
+          React.createElement("button",{style:S.primaryBtn,onClick:enterViewer},allDone?"Review narrations":narratedCount>0?"Continue narrating":"Let's begin"),
+          allDone&&React.createElement("button",{style:{...S.primaryBtn,background:theme.green},onClick:startRefinement},"Refine my stories ✨"))));
+  };
+
+  const renderNarrationChat=()=>{
+    const id=curPid();const data=getData(id);const isDone=data.done;const isLastPhoto=currentIndex===photos.length-1;
+    return React.createElement("div",{style:{minHeight:100}},
+      data.messages.length===0&&phase==="idle"&&React.createElement("div",{style:{textAlign:"center",padding:"8px 0 16px"}},
+        React.createElement("p",{style:{fontFamily:"'Libre Baskerville', serif",fontSize:16,color:theme.ink,fontStyle:"italic",margin:"0 0 16px"}},'"Tell me about this one..."'),
+        React.createElement("button",{style:S.micButton,onClick:()=>{startNarrating();if(speechSupported)setTimeout(()=>startSpeech(),100);}},React.createElement(MicIcon,{size:28})),
+        React.createElement("p",{style:{fontSize:13,color:theme.inkSoft,margin:"10px 0 0"}},speechSupported?"Tap to start speaking":"Tap to start narrating")),
+      data.messages.map((msg,i)=>React.createElement(ChatBubble,{key:i,from:msg.from,text:msg.text,animate:i===data.messages.length-1})),
+      aiThinking&&React.createElement(ThinkingDots),
+      isDone&&!aiThinking&&phase==="open"&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,justifyContent:"center",padding:"12px 0 4px"}},
+        React.createElement("div",{style:{width:20,height:20,borderRadius:6,background:theme.green,display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(CheckIcon,{color:"#fff",size:12})),
+        React.createElement("span",{style:{fontSize:13,color:theme.green,fontWeight:500}},"Captured"),
+        React.createElement("span",{style:{fontSize:12,color:theme.inkFaint}},"— add more anytime")),
+      (phase==="narrating"||phase==="followup"||phase==="open")&&!aiThinking&&React.createElement("div",{style:{marginTop:8}},
+        isRecording&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,justifyContent:"center",padding:"8px 0 12px",animation:"fadeIn 0.3s ease"}},
+          React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:theme.recording,animation:"dotPulse 1s ease-in-out infinite"}}),
+          React.createElement("span",{style:{fontSize:13,color:theme.recording,fontWeight:600}},"Listening... tap 🎙️ when done")),
+        React.createElement("div",{style:{display:"flex",gap:8,alignItems:"flex-end"}},
+          React.createElement("textarea",{ref:textareaRef,value:inputText,onChange:e=>setInputText(e.target.value),placeholder:phase==="narrating"?"Tap 🎙️ or type...":phase==="followup"?"Your thoughts...":"Anything else?",style:{...S.textarea,flex:1},rows:3,onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey&&inputText.trim()){e.preventDefault();stopSpeech();submitText();}}}),
+          speechSupported&&React.createElement("button",{onClick:toggleSpeech,style:{width:48,height:48,borderRadius:14,border:"none",flexShrink:0,background:isRecording?theme.recording:theme.accent,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:isRecording?`0 2px 12px ${theme.recordingGlow}`:`0 2px 12px ${theme.accentGlow}`,animation:isRecording?"recordPulse 1.5s ease-in-out infinite":"none",transition:"background 0.2s ease"}},React.createElement(MicIcon,{size:22,color:"#fff"}))),
+        React.createElement("div",{style:S.inputActions},
+          phase==="followup"&&React.createElement("button",{style:S.skipBtn,onClick:()=>{stopSpeech();setNarrationData(prev=>({...prev,[id]:{...prev[id],done:true}}));setPhase("open");}},"Skip — I'm good"),
+          React.createElement("div",{style:{flex:1}}),
+          React.createElement("button",{style:{...S.sendBtn,opacity:inputText.trim()?1:0.4},onClick:()=>{stopSpeech();submitText();},disabled:!inputText.trim()},React.createElement(SendIcon),` ${phase==="open"?"Add":phase==="narrating"?"Share":"Reply"}`))),
+      isDone&&!aiThinking&&React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center",marginTop:12}},
+        !isLastPhoto?React.createElement("button",{style:S.primaryBtn,onClick:()=>goTo(currentIndex+1)},"Next photo →"):
+        narratedCount===photos.length?React.createElement("button",{style:S.primaryBtn,onClick:()=>setView("review")},"✓ Review all"):
+        React.createElement("button",{style:{...S.primaryBtn,background:theme.inkSoft},onClick:()=>{const n=photos.findIndex(p=>!narrationData[p.id]?.done);if(n>=0)goTo(n);else setView("review");}},"Next un-narrated →")),
+      data.messages.length>0&&!aiThinking&&React.createElement("div",{style:{textAlign:"center",marginTop:12}},React.createElement("button",{style:S.reRecordBtn,onClick:()=>resetNarration(id)},React.createElement(RefreshIcon)," Start over")),
+      React.createElement("div",{ref:chatEndRef}));
+  };
+
+  const renderViewer=()=>{
+    const photo=photos[currentIndex];if(!photo)return null;const data=getData(photo.id);
+    return React.createElement("div",{style:{...S.content,animation:"slideIn 0.3s ease"},key:`v-${currentIndex}`},
+      React.createElement("div",{style:{...S.header,padding:"24px 0 16px"}},React.createElement("h1",{style:{...S.title,fontSize:22}},"Reliable Narrator")),
+      React.createElement("div",{style:{width:"100%",marginBottom:20}},
+        React.createElement("div",{style:S.photoCard},
+          React.createElement("div",{style:{position:"relative"}},
+            photo.dataUrl?React.createElement("img",{src:photo.dataUrl,alt:"",style:S.photoImage}):React.createElement(PhotoPlaceholder,{index:currentIndex,name:photo.name}),
+            React.createElement("button",{style:S.removeBtn,onClick:()=>removePhoto(photo.id)},"×")),
+          React.createElement("div",{style:S.photoFooter},React.createElement("span",{style:S.photoIdx},`${currentIndex+1} of ${photos.length}`),React.createElement("span",{style:S.photoDate},formatDate(photo.date))))),
+      React.createElement("div",{style:S.navRow},
+        React.createElement("button",{style:{...S.navBtn,...(currentIndex===0?S.navBtnOff:{})},onClick:()=>goTo(currentIndex-1),disabled:currentIndex===0},React.createElement(ChevLeft)),
+        React.createElement("div",{style:S.progBar},React.createElement("div",{style:{...S.progFill,width:`${((currentIndex+1)/photos.length)*100}%`}})),
+        React.createElement("button",{style:{...S.navBtn,...(currentIndex===photos.length-1?S.navBtnOff:{})},onClick:()=>goTo(currentIndex+1),disabled:currentIndex===photos.length-1},React.createElement(ChevRight))),
+      React.createElement("div",{style:{width:"100%",background:theme.card,borderRadius:20,padding:"20px",boxShadow:`0 4px 24px ${theme.shadow}`,marginBottom:20,border:`1px solid ${data.done?theme.green:phase!=="idle"?theme.accent:theme.border}`,transition:"border-color 0.3s ease"}},renderNarrationChat()),
+      React.createElement("div",{style:{...S.stripContainer,marginBottom:12}},React.createElement("div",{style:S.stripLabel},`${narratedCount} of ${photos.length} narrated`),React.createElement("div",{style:S.strip},photos.map((p,i)=>React.createElement(Thumbnail,{key:p.id,photo:p,index:i,isActive:i===currentIndex,status:getNarrationStatus(p.id),onClick:()=>goTo(i)})))),
+      React.createElement("button",{style:{...S.addMoreBtn,marginBottom:40},onClick:()=>setView("review")},"← Back to all photos"));
+  };
+
+  const renderRefining=()=>React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+    React.createElement("div",{style:S.header},React.createElement("div",{style:S.logoMark},React.createElement(PenIcon)),React.createElement("h1",{style:S.title},"Reliable Narrator"),React.createElement("p",{style:S.subtitle},"Refining...")),
+    React.createElement("div",{style:{...S.card,border:`1px solid ${theme.accent}`}},React.createElement(ThinkingDots),React.createElement("p",{style:{fontSize:12,color:theme.inkFaint}},`${Object.values(refinedData).filter(r=>r.refined).length} of ${narratedPhotos.length} refined`)));
+
+  const renderEndorse=()=>{
+    const photo=narratedPhotos[endorseIndex];if(!photo)return null;
+    const original=narrationData[photo.id]?.transcript||"";const refined=refinedData[photo.id]?.refined||"";const isEndorsed=refinedData[photo.id]?.endorsed;const allEndorsed=endorsedCount===narratedPhotos.length;const isRetrying=refined===null;
+    return React.createElement("div",{style:{...S.content,animation:"slideIn 0.3s ease"},key:`e-${endorseIndex}`},
+      React.createElement("div",{style:{...S.header,padding:"24px 0 16px"}},React.createElement("h1",{style:{...S.title,fontSize:22}},"Endorsement"),React.createElement("p",{style:S.subtitle},`${endorsedCount} of ${narratedPhotos.length} approved`)),
+      React.createElement("div",{style:{...S.progBar,width:"100%",maxWidth:"100%",marginBottom:20}},React.createElement("div",{style:{...S.progFill,background:theme.green,width:`${(endorsedCount/narratedPhotos.length)*100}%`}})),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,width:"100%",marginBottom:16}},
+        React.createElement(MiniPhoto,{photo,index:photos.indexOf(photo)}),
+        React.createElement("div",null,React.createElement("p",{style:{fontSize:14,fontWeight:600,color:theme.ink,margin:0}},`Photo ${photos.indexOf(photo)+1}`),React.createElement("p",{style:{fontSize:12,color:theme.inkFaint,margin:0}},formatDate(photo.date))),
+        isEndorsed&&React.createElement("div",{style:{marginLeft:"auto",display:"flex",alignItems:"center",gap:4}},React.createElement("div",{style:{width:18,height:18,borderRadius:5,background:theme.green,display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(CheckIcon,{color:"#fff",size:11})),React.createElement("span",{style:{fontSize:12,color:theme.green,fontWeight:500}},"Approved"))),
+      React.createElement("div",{style:{width:"100%",marginBottom:16}},React.createElement("div",{style:S.sectionLabel},"Your words"),React.createElement("div",{style:{background:theme.bgDeep,borderRadius:14,padding:"14px 16px",fontSize:14,color:theme.inkSoft,lineHeight:1.6,fontStyle:"italic",whiteSpace:"pre-wrap"}},original)),
+      React.createElement("div",{style:{width:"100%",marginBottom:20}},React.createElement("div",{style:{...S.sectionLabel,color:theme.accent}},hasAI?"RN's version":"Your narration (edit below)"),
+        isRetrying?React.createElement(ThinkingDots):isEditing?React.createElement("div",null,React.createElement("textarea",{ref:editRef,value:editText,onChange:e=>setEditText(e.target.value),style:{...S.textarea,minHeight:120}}),React.createElement("div",{style:{display:"flex",gap:8,marginTop:8}},React.createElement("button",{style:S.skipBtn,onClick:()=>setIsEditing(false)},"Cancel"),React.createElement("button",{style:S.sendBtn,onClick:()=>saveEditFn(photo.id)},React.createElement(CheckIcon,{size:14})," Save"))):
+        React.createElement("div",{style:{background:theme.card,border:`1px solid ${isEndorsed?theme.green:theme.accent}`,borderRadius:14,padding:"14px 16px",fontSize:14,color:theme.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}},refined)),
+      !isEditing&&!isRetrying&&React.createElement("div",{style:{display:"flex",gap:10,width:"100%",justifyContent:"center",flexWrap:"wrap",marginBottom:20}},
+        !isEndorsed&&React.createElement(React.Fragment,null,
+          React.createElement("button",{style:{...S.primaryBtn,background:theme.green},onClick:()=>endorseEntry(photo.id)},React.createElement("span",{style:{display:"flex",alignItems:"center",gap:6}},React.createElement(CheckIcon,{size:16})," Approve")),
+          React.createElement("button",{style:S.outlineBtn,onClick:()=>{setEditText(refined);setIsEditing(true);}},React.createElement("span",{style:{display:"flex",alignItems:"center",gap:6}},React.createElement(EditIcon)," Edit")),
+          hasAI&&React.createElement("button",{style:S.outlineBtn,onClick:()=>retryRefine(photo.id)},React.createElement("span",{style:{display:"flex",alignItems:"center",gap:6}},React.createElement(RefreshIcon)," Retry"))),
+        isEndorsed&&React.createElement("button",{style:S.outlineBtn,onClick:()=>setRefinedData(prev=>({...prev,[photo.id]:{...prev[photo.id],endorsed:false}}))},"Undo approval")),
+      React.createElement("div",{style:S.navRow},
+        React.createElement("button",{style:{...S.navBtn,...(endorseIndex===0?S.navBtnOff:{})},onClick:()=>setEndorseIndex(endorseIndex-1),disabled:endorseIndex===0},React.createElement(ChevLeft)),
+        React.createElement("p",{style:{fontSize:13,color:theme.inkFaint}},`${endorseIndex+1} / ${narratedPhotos.length}`),
+        React.createElement("button",{style:{...S.navBtn,...(endorseIndex===narratedPhotos.length-1?S.navBtnOff:{})},onClick:()=>setEndorseIndex(endorseIndex+1),disabled:endorseIndex===narratedPhotos.length-1},React.createElement(ChevRight))),
+      allEndorsed&&React.createElement("div",{style:{...S.card,border:`1px solid ${theme.green}`,animation:"capturedPop 0.4s ease"}},React.createElement("h2",{style:S.cardTitle},"All stories approved!"),React.createElement("p",{style:S.cardText},"Now let's decide which ones go in the family newsletter."),React.createElement("button",{style:{...S.primaryBtn,background:theme.green},onClick:startTagging},"Start tagging →")));
+  };
+
+  const renderTagging=()=>{
+    const photo=narratedPhotos[tagIndex];if(!photo)return null;const refined=refinedData[photo.id]?.refined||"";const currentTag=tags[photo.id];const allTagged=taggedCount===narratedPhotos.length;
+    return React.createElement("div",{style:{...S.content,animation:"slideIn 0.3s ease"},key:`t-${tagIndex}`},
+      React.createElement("div",{style:{...S.header,padding:"24px 0 16px"}},React.createElement("h1",{style:{...S.title,fontSize:22}},"Tag Your Stories"),React.createElement("p",{style:S.subtitle},`${taggedCount} of ${narratedPhotos.length} tagged`)),
+      React.createElement("div",{style:{...S.progBar,width:"100%",maxWidth:"100%",marginBottom:20}},React.createElement("div",{style:{...S.progFill,background:theme.green,width:`${(taggedCount/narratedPhotos.length)*100}%`}})),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,width:"100%",marginBottom:16}},React.createElement(MiniPhoto,{photo,index:photos.indexOf(photo)}),React.createElement("div",null,React.createElement("p",{style:{fontSize:14,fontWeight:600,color:theme.ink,margin:0}},`Photo ${photos.indexOf(photo)+1}`),React.createElement("p",{style:{fontSize:12,color:theme.inkFaint,margin:0}},formatDate(photo.date)))),
+      React.createElement("div",{style:{width:"100%",background:theme.card,border:`1px solid ${theme.border}`,borderRadius:14,padding:"14px 16px",fontSize:14,color:theme.ink,lineHeight:1.6,marginBottom:20,whiteSpace:"pre-wrap"}},refined),
+      React.createElement("p",{style:{fontSize:14,color:theme.inkSoft,margin:"0 0 12px",textAlign:"center"}},"Where does this one belong?"),
+      React.createElement("div",{style:{display:"flex",gap:12,width:"100%",marginBottom:24}},
+        React.createElement("button",{onClick:()=>tagEntry(photo.id,"newsletter"),style:{...S.tagBtn,...(currentTag==="newsletter"?{background:theme.accent,color:"#fff",borderColor:theme.accent}:{})}},"📬 Newsletter"),
+        React.createElement("button",{onClick:()=>tagEntry(photo.id,"personal"),style:{...S.tagBtn,...(currentTag==="personal"?{background:theme.personal,color:"#fff",borderColor:theme.personal}:{})}},"🔒 Personal only")),
+      React.createElement("div",{style:S.navRow},
+        React.createElement("button",{style:{...S.navBtn,...(tagIndex===0?S.navBtnOff:{})},onClick:()=>setTagIndex(tagIndex-1),disabled:tagIndex===0},React.createElement(ChevLeft)),
+        React.createElement("p",{style:{fontSize:13,color:theme.inkFaint}},`${tagIndex+1} / ${narratedPhotos.length}`),
+        React.createElement("button",{style:{...S.navBtn,...(tagIndex===narratedPhotos.length-1?S.navBtnOff:{})},onClick:()=>setTagIndex(tagIndex+1),disabled:tagIndex===narratedPhotos.length-1},React.createElement(ChevRight))),
+      allTagged&&React.createElement("div",{style:{...S.card,border:`1px solid ${theme.green}`,animation:"capturedPop 0.4s ease"}},React.createElement("h2",{style:S.cardTitle},"All tagged!"),React.createElement("p",{style:S.cardText},"Ready to generate your outputs."),React.createElement("button",{style:{...S.primaryBtn,background:theme.green},onClick:()=>setView("output")},"Generate outputs →")));
+  };
+
+  const renderOutput=()=>{
+    const newsletterEntries=narratedPhotos.filter(p=>tags[p.id]==="newsletter");
+    const personalEntries=narratedPhotos.filter(p=>tags[p.id]==="personal");
+    const newsletterText=(newsletterEntries.map(p=>refinedData[p.id]?.refined||"").filter(Boolean).join("\n\n"))||"";
+    const fullRecordText=(narratedPhotos.map(p=>{const t=refinedData[p.id]?.refined||"";if(!t)return"";return tags[p.id]==="personal"?`[PERSONAL] ${t}`:t;}).filter(Boolean).join("\n\n"))||"";
+    return React.createElement("div",{style:{...S.content,animation:"fadeIn 0.5s ease"}},
+      React.createElement("div",{style:S.header},React.createElement("div",{style:S.logoMark},React.createElement(PenIcon)),React.createElement("h1",{style:S.title},"Reliable Narrator"),React.createElement("p",{style:S.subtitle},"Your stories are ready.")),
+      React.createElement("div",{style:{width:"100%",marginBottom:24}},
+        React.createElement("div",{style:{...S.sectionLabel,fontSize:14,color:theme.accent}},"📬 The Newsletter"),
+        React.createElement("p",{style:{fontSize:12,color:theme.inkFaint,margin:"0 0 10px"}},`${newsletterEntries.length} entr${newsletterEntries.length===1?"y":"ies"} — ready to paste`),
+        React.createElement("div",{style:{background:theme.card,border:`1px solid ${theme.accent}`,borderRadius:16,padding:"18px",fontSize:14,color:theme.ink,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}},newsletterText||"No newsletter entries."),
+        React.createElement("button",{style:{...S.outlineBtn,marginTop:10,width:"100%"},onClick:()=>copyToClipboard(newsletterText,"newsletter")},React.createElement("span",{style:{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}},React.createElement(CopyIcon),copied==="newsletter"?" Copied!":" Copy newsletter text"))),
+      React.createElement("div",{style:{width:"100%",marginBottom:24}},
+        React.createElement("div",{style:{...S.sectionLabel,fontSize:14,color:theme.personal}},"📓 The Full Record"),
+        React.createElement("p",{style:{fontSize:12,color:theme.inkFaint,margin:"0 0 10px"}},`All ${narratedPhotos.length} entries`),
+        React.createElement("div",{style:{background:theme.card,border:`1px solid ${theme.personal}`,borderRadius:16,padding:"18px",fontSize:14,color:theme.ink,lineHeight:1.7,maxHeight:300,overflowY:"auto"}},
+          narratedPhotos.map((p,i)=>{const t=refinedData[p.id]?.refined||"";const isPers=tags[p.id]==="personal";
+            return React.createElement("div",{key:p.id,style:{marginBottom:i<narratedPhotos.length-1?16:0}},
+              isPers&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:theme.personal,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:4}},"Personal"),
+              React.createElement("span",{style:{fontStyle:isPers?"italic":"normal",color:isPers?theme.inkSoft:theme.ink}},t));})),
+        React.createElement("button",{style:{...S.outlineBtn,marginTop:10,width:"100%",borderColor:theme.personal,color:theme.personal},onClick:()=>copyToClipboard(fullRecordText,"fullrecord")},React.createElement("span",{style:{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}},React.createElement(CopyIcon,{color:theme.personal}),copied==="fullrecord"?" Copied!":" Copy full record"))),
+      React.createElement("div",{style:{...S.card,border:`1px solid ${theme.green}`}},
+        React.createElement("h2",{style:S.cardTitle},"All done! 🎉"),
+        React.createElement("p",{style:S.cardText},`${newsletterEntries.length} newsletter and ${personalEntries.length} personal entries.`),
+        React.createElement("button",{style:{...S.primaryBtn,background:theme.inkSoft},onClick:()=>setView("review")},"← Back to start")));
+  };
+
+  const SettingsButton=()=>view!=="settings"&&view!=="loading"?React.createElement("button",{onClick:openSettings,style:{position:"fixed",top:12,left:12,zIndex:100,width:40,height:40,borderRadius:12,border:`1px solid ${theme.border}`,background:theme.card,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:`0 2px 8px ${theme.shadow}`}},React.createElement(GearIcon)):null;
+
+  return React.createElement("div",{style:{fontFamily:"'DM Sans', sans-serif",background:theme.bg,color:theme.ink,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}},
+    React.createElement("div",{style:{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundImage:`radial-gradient(circle at 20% 30%, ${theme.accentGlow} 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(107,94,82,0.05) 0%, transparent 50%)`,pointerEvents:"none",zIndex:0}}),
+    React.createElement(SettingsButton),
+    React.createElement(SaveIndicator,{status:saveStatus}),
+    view==="loading"&&renderLoading(),
+    view==="upload"&&renderUpload(),
+    view==="review"&&renderReview(),
+    view==="viewer"&&renderViewer(),
+    view==="refining"&&renderRefining(),
+    view==="endorse"&&renderEndorse(),
+    view==="tagging"&&renderTagging(),
+    view==="output"&&renderOutput(),
+    view==="settings"&&renderSettings());
+}
+
+ReactDOM.render(React.createElement(ReliableNarrator), document.getElementById("root"));
+</script>
+</body>
+</html>
