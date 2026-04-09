@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -340,19 +341,31 @@ function ReliableNarrator(){
   // ─── Files ───
   const handleFiles=useCallback((files)=>{
     const validTypes=["image/jpeg","image/jpg","image/png","image/gif","image/webp","image/bmp","image/heic","image/heif"];
-    Array.from(files).forEach(file=>{
+    const validFiles=Array.from(files).filter(file=>{
       const isImage=file.type.startsWith("image/")||validTypes.some(t=>file.type.toLowerCase()===t);
-      if(!isImage||file.type.startsWith("video/")||file.size>15*1024*1024)return;
+      return isImage&&!file.type.startsWith("video/")&&file.size<=15*1024*1024;
+    });
+    if(validFiles.length===0)return;
+
+    // Read all files, collect results, then update state once
+    let loaded=[];
+    let remaining=validFiles.length;
+    validFiles.forEach((file,idx)=>{
       const reader=new FileReader();
-      reader.onerror=()=>{};
+      reader.onerror=()=>{remaining--;if(remaining===0&&loaded.length>0){setPhotos(prev=>[...prev,...loaded].sort((a,b)=>a.date-b.date));setView("review");}};
       reader.onload=(e)=>{
         const dataUrl=e.target.result;
-        if(!dataUrl||typeof dataUrl!=="string"||!dataUrl.startsWith("data:"))return;
-        setPhotos(prev=>[...prev,{id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,file:null,dataUrl,name:file.name.replace(/\.[^.]+$/,"").replace(/[-_]/g," "),date:file.lastModified?new Date(file.lastModified):new Date()}].sort((a,b)=>a.date-b.date));
+        if(dataUrl&&typeof dataUrl==="string"&&dataUrl.startsWith("data:")){
+          loaded.push({id:`${Date.now()}-${idx}-${Math.random().toString(36).slice(2,8)}`,file:null,dataUrl,name:file.name.replace(/\.[^.]+$/,"").replace(/[-_]/g," "),date:file.lastModified?new Date(file.lastModified):new Date()});
+        }
+        remaining--;
+        if(remaining===0&&loaded.length>0){
+          setPhotos(prev=>[...prev,...loaded].sort((a,b)=>a.date-b.date));
+          setView("review");
+        }
       };
       reader.readAsDataURL(file);
     });
-    setTimeout(()=>setView("review"),100);
   },[]);
 
   const handleDrop=useCallback((e)=>{e.preventDefault();setDragActive(false);handleFiles(e.dataTransfer.files);},[handleFiles]);
